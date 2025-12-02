@@ -7,7 +7,7 @@ const statusElem = document.getElementById("status") as HTMLDivElement;
 
 // API Configuration
 const API_BASE_URL = "/api";
-
+const STORAGE_KEY = 'meetingState';
 // Store active meetings - we'll manage this client-side
 let activeMeetings: Array<{
   meetingId: string;
@@ -30,6 +30,7 @@ function setupEventListeners() {
 }
 
 // Handle form submission
+// Handle form submission
 async function handleFormSubmit(e: Event) {
   e.preventDefault();
   
@@ -42,7 +43,6 @@ async function handleFormSubmit(e: Event) {
   showStatus("Joining meeting...", "info");
   
   try {
-   
     const response = await fetch(`${API_BASE_URL}/submit_meeting_link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,31 +51,38 @@ async function handleFormSubmit(e: Event) {
       }),
     });
 
-    console.log("Response status:", response.status);
-    const result = await response.json();
-    console.log("Response data:", result); // Debug log
-
-    if (!response.ok) {
-      throw new Error(await response.text());
+    // Store the response text first
+    const responseText = await response.text();
+    let result;
+    
+    try {
+      // Try to parse it as JSON
+      result = JSON.parse(responseText);
+    } catch (e) {
+      // If not valid JSON, throw the raw text
+      throw new Error(responseText || 'Invalid response from server');
     }
 
-    // Update this part to match the backend response structure
-    if (result.meeting_id) {  // Changed from result.meetingId to result.meeting_id
-      activeMeetings.push({
-        meetingId: result.meeting_id,  // Changed from result.meetingId to result.meeting_id
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to join meeting');
+    }
+
+    if (result.meeting_id) {
+      const newMeeting = {
+        meetingId: result.meeting_id,
         containerName: result.containerName || `meeting-${Date.now()}`,
         url: url,
         status: 'active',
         createdAt: new Date().toISOString()
-      });
+      };
+      
+      activeMeetings.push(newMeeting);
       renderActiveMeetings();
       showStatus("Meeting joined successfully", "success");
       urlInput.value = "";
     } else {
-      console.error("Unexpected response format:", result);
       throw new Error('Invalid response format from server');
     }
-    
   } catch (error) {
     console.error("Error joining meeting:", error);
     showStatus(
